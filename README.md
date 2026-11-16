@@ -7,7 +7,7 @@ The HAL-C2 avatar animations (dance and genie), drawn in Blender Grease Pencil a
 
 ## Getting started
 
-You need [mise](https://mise.jdx.dev). Every task below runs from the repository root.
+You need [mise](https://mise.jdx.dev). On a new clone mise asks once whether to trust `mise.toml`; answer yes (or run `mise trust`).
 
 ```sh
 mise run setup        # install the pinned Python, then report which optional pieces are present
