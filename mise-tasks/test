@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#MISE description="Run check, then load every Lottie JSON headless in Qt's Lottie player (qml6, Qt.labs.lottieqt) and assert it reaches Ready with its frame range; --no-qt runs check only"
+#MISE depends=["check"]
+#USAGE flag "--no-qt" help="Skip the Qt player load (check still runs)"
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=tools/qt.sh
+. "$root/tools/qt.sh"
+
+if [ "${usage_no_qt:-}" = true ]; then
+  echo "test: skipped the Qt player load (--no-qt)"
+  exit 0
+fi
+if ! qml="$(find_qml)" || ! qt_has_lottie "$qml"; then
+  echo "test: qml6 / Qt.labs.lottieqt not found: $QT_LOTTIE_HELP; or run 'mise run test --no-qt'" >&2
+  exit 1
+fi
+
+args=()
+while IFS="$(printf '\t')" read -r file ip op; do
+  args+=("file://$file|$ip|$op")
+done < <(python "$root/tools/lottie_check.py" frames "$root")
+if [ "${#args[@]}" -eq 0 ]; then
+  echo "test: no Lottie JSON files found under version*/" >&2
+  exit 1
+fi
+# Qt's player reads Lottie JSON only, not dotLottie archives; check already
+# proved each .lottie holds exactly its sibling .json.
+echo "test: loading ${#args[@]} Lottie JSON file(s) in $qml (.lottie files are covered by check: Qt reads only JSON)"
+qt_offscreen_env
+bounded 60 "$qml" "$root/tools/qt_load.qml" -- "${args[@]}"
