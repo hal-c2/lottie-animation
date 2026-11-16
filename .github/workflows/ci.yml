@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tasks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      # Ubuntu packages Qt's Lottie module, so test loads every animation in
+      # Qt's player. Blender and the build script's helpers are not here;
+      # tasks:smoke dry-runs build for that reason.
+      - name: Install Qt's Lottie player
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qml-qt6 qml6-module-qtquick qml6-module-qtquick-window \
+            qml6-module-qt-labs-lottieqt qt6-qpa-plugins
+      - run: mise run setup
+      - run: mise run check
+      - run: mise run test
+      - run: mise run tasks:smoke
