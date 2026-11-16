@@ -1,0 +1,4 @@
+# Only the validator needs a tool mise can install. Blender, Qt and ljos are
+# optional, platform-specific installs; `mise run setup` says how to get each.
+[tools]
+python = "3.13"
