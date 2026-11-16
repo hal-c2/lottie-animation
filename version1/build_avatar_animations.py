@@ -1,23 +1,42 @@
 """Build the HAL-C2 avatar Grease Pencil animations and export them to Lottie.
 
-Run: ANIM=dance|genie OUT=<dir> REVIEW=<dir> blender -b --factory-startup --python build.py
+blender -b --factory-startup --python build_avatar_animations.py -- <dance|genie> <out_dir>
+
+(ANIM=<dance|genie> OUT=<out_dir> in the environment work too.)
+
+`mise run build version1 <dance|genie>` runs this with the environment below
+checked first:
+  LOTTIE_GP_SCRIPTS        folder holding the bx_gp helper module
+  LOTTIE_EXPORT_ADDON_DIR  folder holding the io_lottie_export add-on, unless
+                           Blender already imports it
+  HAL_C2_AVATAR_SVG        hal-c2-avatar.svg from hal-c2/hal-c2 assets/brand
+  LOTTIE_WORK_DIR          review renders (default: <temp dir>/hal-c2-lottie);
+                           REVIEW still overrides it
 
 The avatar is imported from SVG as Bezier fills, split into layers by graphic
 role, and every frame is a "sculpted" copy of the rest drawing (same strokes,
 same points), so the Lottie exporter writes one path key per frame per shape.
 """
-import bpy, sys, os, math
+import bpy, sys, os, math, tempfile
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.append("/Users/olafurarason/.claude/skills/scenario-blender-grease-pencil/scripts")
+for var in ("LOTTIE_GP_SCRIPTS", "LOTTIE_EXPORT_ADDON_DIR"):
+    if os.environ.get(var):
+        sys.path.append(os.path.expanduser(os.environ[var]))
 sys.path.append(HERE)
 import bx_gp as G
 
-ANIM = os.environ["ANIM"]
-OUT = os.environ["OUT"]
-REVIEW = os.environ.get("REVIEW", os.path.join(HERE, "review"))
-SVG = os.path.expanduser("~/Documents/hal-c2/hal-c2-avatar.svg")
+ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+ANIM = ARGS[0] if ARGS else os.environ.get("ANIM", "")
+OUT = ARGS[1] if len(ARGS) > 1 else os.environ.get("OUT", "")
+if ANIM not in ("dance", "genie") or not OUT:
+    sys.exit("usage: blender -b --factory-startup --python build_avatar_animations.py -- <dance|genie> <out_dir>")
+WORK = os.environ.get("LOTTIE_WORK_DIR") or os.path.join(tempfile.gettempdir(), "hal-c2-lottie")
+REVIEW = os.environ.get("REVIEW", os.path.join(WORK, "version1"))
+SVG = os.path.expanduser(os.environ.get("HAL_C2_AVATAR_SVG", ""))
+if not os.path.isfile(SVG):
+    sys.exit("HAL_C2_AVATAR_SVG must name hal-c2-avatar.svg (hal-c2/hal-c2, assets/brand)")
 os.makedirs(OUT, exist_ok=True)
 
 PALETTE = {  # the avatar's own SVG fills, one material per paint bucket

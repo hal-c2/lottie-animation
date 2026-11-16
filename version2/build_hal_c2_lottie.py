@@ -1,6 +1,14 @@
 """Build the HAL-C2 avatar Grease Pencil animations and export them to Lottie.
 
-blender -b --factory-startup --python build.py -- <dance|genie> <out_dir>
+blender -b --factory-startup --python build_hal_c2_lottie.py -- <dance|genie> <out_dir>
+
+`mise run build version2 <dance|genie>` runs this with the environment below
+checked first:
+  LOTTIE_GP_SCRIPTS        folder holding the bx_gp helper module
+  LOTTIE_EXPORT_ADDON_DIR  folder holding the io_lottie_export add-on, unless
+                           Blender already imports it
+  HAL_C2_AVATAR_SVG        hal-c2-avatar.svg from hal-c2/hal-c2 assets/brand
+  LOTTIE_WORK_DIR          review renders (default: <temp dir>/hal-c2-lottie)
 
 The avatar is imported from SVG as Bezier fill strokes, split into layers by
 graphic role, and every animated frame is a sculpted copy of the rest pose
@@ -10,17 +18,24 @@ graphic role, and every animated frame is a sculpted copy of the rest pose
 import math
 import os
 import sys
+import tempfile
 
 import bpy
 import numpy as np
 
-sys.path.append("/Users/olafurarason/.claude/skills/scenario-blender-grease-pencil/scripts")
-sys.path.append("/tmp/halanim-b2")
+for var in ("LOTTIE_GP_SCRIPTS", "LOTTIE_EXPORT_ADDON_DIR"):
+    if os.environ.get(var):
+        sys.path.append(os.path.expanduser(os.environ[var]))
 import bx_gp as G  # noqa: E402
 import io_lottie_export  # noqa: E402
 
 MODE, OUT = sys.argv[sys.argv.index("--") + 1:][:2]
-SVG = os.path.expanduser("~/Documents/hal-c2/hal-c2-avatar.svg")
+if MODE not in ("dance", "genie"):
+    sys.exit(f"unknown animation {MODE!r}: expected dance or genie")
+SVG = os.path.expanduser(os.environ.get("HAL_C2_AVATAR_SVG", ""))
+if not os.path.isfile(SVG):
+    sys.exit("HAL_C2_AVATAR_SVG must name hal-c2-avatar.svg (hal-c2/hal-c2, assets/brand)")
+WORK = os.path.join(os.environ.get("LOTTIE_WORK_DIR") or os.path.join(tempfile.gettempdir(), "hal-c2-lottie"), "version2")
 os.makedirs(OUT, exist_ok=True)
 
 PALETTE = {
@@ -329,7 +344,7 @@ bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, f"hal-c2-{MODE}.blend"))
 
 # review renders (Blender) and the Lottie export through the add-on's operator
 sc.render.image_settings.file_format = "PNG"
-sc.render.filepath = os.path.join(OUT, f"frames-{MODE}", "")
+sc.render.filepath = os.path.join(WORK, f"frames-{MODE}", "")
 bpy.ops.render.render(animation=True)
 for fmt, ext in (("JSON", "json"), ("LOTTIE", "lottie")):
     bpy.ops.lottie_exporter.gp_vector(filepath=os.path.join(OUT, f"hal-c2-{MODE}.{ext}"),
