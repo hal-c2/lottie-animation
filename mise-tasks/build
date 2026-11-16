@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#MISE description="Rebuild one animation (.blend, .json, .lottie) with Blender headless from that version's script, into build/<version> by default; needs Blender, bx_gp, io_lottie_export and the avatar SVG"
+#USAGE arg "<version>" help="Which build script: version1 or version2" { choices "version1" "version2"; }
+#USAGE arg "<animation>" help="Which animation: dance or genie" { choices "dance" "genie"; }
+#USAGE arg "[out_dir]" help="Where the files go (default build/<version>; the committed ones are never overwritten unless you name their folder)"
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=tools/blender.sh
+. "$root/tools/blender.sh"
+
+version="${usage_version:?}"
+animation="${usage_animation:?}"
+case "$version" in
+  version1) script="$root/version1/build_avatar_animations.py" ;;
+  version2) script="$root/version2/build_hal_c2_lottie.py" ;;
+  *) echo "build: unknown version '$version': expected version1 or version2" >&2; exit 1 ;;
+esac
+out="${usage_out_dir:-$root/build/$version}"
+case "$out" in
+  /*) ;;
+  *) out="${MISE_ORIGINAL_CWD:-$PWD}/$out" ;;
+esac
+
+# Name everything that is missing at once, so one run says all there is to get.
+missing="$(check_blender; check_bx_gp; check_lottie_addon; check_avatar_svg)"
+if [ -n "$missing" ]; then
+  printf '%s\n' "$missing" | sed 's/^/build: /' >&2
+  exit 1
+fi
+
+mkdir -p "$out"
+blender="$(find_blender)"
+path="$(blender_python_path "$blender")"
+[ "$path" = "$PATH" ] || echo "build: running Blender with PATH=$path, as another Python on PATH hides its standard library"
+# --python-exit-code: Blender otherwise prints a script's traceback and exits 0.
+PATH="$path" "$blender" -b --factory-startup --python-exit-code 1 --python "$script" -- "$animation" "$out"
+
+for ext in blend json lottie; do
+  [ -f "$out/hal-c2-$animation.$ext" ] || { echo "build: Blender finished but wrote no $out/hal-c2-$animation.$ext" >&2; exit 1; }
+done
+echo "build: wrote $out/hal-c2-$animation.{blend,json,lottie}; copy them into $version/ to replace the committed ones, then run 'mise run check'"
