@@ -46,6 +46,12 @@ PY
   *) echo "run: $name is not a .json or .lottie animation" >&2; exit 1 ;;
 esac
 
+# The path and name go into QML string literals: as a percent-encoded file URL
+# and as JSON strings, which are valid JavaScript ones, so quotes, backslashes,
+# spaces and '#' in a path survive.
+source_literal="$(python -c 'import json, pathlib, sys; print(json.dumps(pathlib.Path(sys.argv[1]).as_uri()))' "$file")"
+name_literal="$(python -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$name")"
+
 # The same small viewer as ljos-ui's `mise run lottie`, so the two players can
 # be compared side by side.
 cat > "$dir/view.qml" <<QML
@@ -60,7 +66,7 @@ Rectangle {
     LottieAnimation {
         id: anim
         anchors.centerIn: parent
-        source: "file://$file"
+        source: $source_literal
         loops: LottieAnimation.Infinite
     }
 
@@ -75,7 +81,7 @@ Rectangle {
         anchors.margins: 8
         x: 8
         color: "white"
-        text: "$name · " + ["Null", "Loading", "Ready", "Error"][anim.status]
+        text: $name_literal + " · " + ["Null", "Loading", "Ready", "Error"][anim.status]
               + " · " + anim.frameRate + " fps · frames " + anim.startFrame + "–" + anim.endFrame
               + " · click to pause"
     }

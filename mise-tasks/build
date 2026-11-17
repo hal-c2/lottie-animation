@@ -39,3 +39,4 @@ for ext in blend json lottie; do
   [ -f "$out/hal-c2-$animation.$ext" ] || { echo "build: Blender finished but wrote no $out/hal-c2-$animation.$ext" >&2; exit 1; }
 done
 echo "build: wrote $out/hal-c2-$animation.{blend,json,lottie}; copy them into $version/ to replace the committed ones, then run 'mise run check'"
+echo "build: the scripts do not render $version/hal-c2-$animation-preview.gif; re-record it from 'mise run run' when the motion changed, or it shows the old animation"

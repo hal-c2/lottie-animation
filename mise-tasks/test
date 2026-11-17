@@ -21,10 +21,15 @@ if [ -n "$problem" ]; then
   exit 1
 fi
 
+# Captured first, so a failing frames step stops the test instead of leaving a
+# short list behind a process substitution.
+frames="$(python "$root/tools/lottie_check.py" frames "$root")"
 args=()
-while IFS="$(printf '\t')" read -r file ip op; do
-  args+=("file://$file|$ip|$op")
-done < <(python "$root/tools/lottie_check.py" frames "$root")
+while IFS="$(printf '\t')" read -r url ip op; do
+  [ -n "$url" ] && args+=("$url|$ip|$op")
+done <<EOF
+$frames
+EOF
 if [ "${#args[@]}" -eq 0 ]; then
   echo "test: no Lottie JSON files found under version*/" >&2
   exit 1

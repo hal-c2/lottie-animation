@@ -60,9 +60,11 @@ for t in $(comm -13 <(printf '%s\n' "$names") <(printf '%s\n' "$tabled")); do
   record "$t" "-" FAIL 0
 done
 
-# Every task file, whether or not --only picks it.
+# Every bash task file, whether or not --only picks it; anything else under
+# mise-tasks (a README, a helper in another language) is not checked as one.
 lint=""
 for f in $(find mise-tasks -type f | sort); do
+  head -n1 "$f" | grep -q '^#!.*bash' || continue
   problems=""
   bash -n "$f" 2>/dev/null || problems="$problems bash -n fails;"
   grep -q '^#MISE description=' "$f" || problems="$problems no #MISE description;"

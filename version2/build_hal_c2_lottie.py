@@ -25,7 +25,9 @@ import numpy as np
 
 for var in ("LOTTIE_GP_SCRIPTS", "LOTTIE_EXPORT_ADDON_DIR"):
     if os.environ.get(var):
-        sys.path.append(os.path.expanduser(os.environ[var]))
+        # First, so the configured helpers win over any of the same name on
+        # Blender's own path.
+        sys.path.insert(0, os.path.expanduser(os.environ[var]))
 import bx_gp as G  # noqa: E402
 import io_lottie_export  # noqa: E402
 

@@ -1,7 +1,7 @@
 """Validate the committed animations without a GUI.
 
     python tools/lottie_check.py check [ROOT]   every rule below, one line per broken rule
-    python tools/lottie_check.py frames [ROOT]  "<file>\t<ip>\t<op>" per Lottie JSON, for the Qt load test
+    python tools/lottie_check.py frames [ROOT]  "<file URL>\t<ip>\t<op>" per Lottie JSON, for the Qt load test
 
 An animation is a stem such as version2/hal-c2-dance; it is complete when it
 has <stem>.json, <stem>.lottie, <stem>.blend and <stem>-preview.gif.
@@ -88,8 +88,19 @@ def check_lottie(path, rel, sibling, errors):
         except (UnicodeDecodeError, json.JSONDecodeError) as e:
             errors.append(f"{rel}: {first} is not valid JSON ({e})")
             return
-        if packed != sibling:
+        if not same_json(packed, sibling):
             errors.append(f"{rel}: {first} differs from {rel[: -len('.lottie')]}.json; re-export both together")
+
+
+def same_json(a, b):
+    """JSON equality. Python's == says False == 0, but Lottie's false and 0 differ."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return type(a) is type(b) and a == b
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(same_json(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(same_json(x, y) for x, y in zip(a, b))
+    return a == b
 
 
 def check_magic(path, rel, magics, what, errors):
@@ -132,7 +143,9 @@ def check(root):
 def frames(root):
     for stem in stems(root):
         doc = json.loads(Path(f"{stem}.json").read_text(encoding="utf-8"))
-        print(f"{stem}.json\t{doc['ip']}\t{doc['op']}")
+        # A percent-encoded URL: no tab or '|' of a path reaches the test's
+        # "url|ip|op" arguments.
+        print(f"{Path(f'{stem}.json').as_uri()}\t{doc['ip']}\t{doc['op']}")
     return 0
 
 

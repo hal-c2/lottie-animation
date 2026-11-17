@@ -23,7 +23,9 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 for var in ("LOTTIE_GP_SCRIPTS", "LOTTIE_EXPORT_ADDON_DIR"):
     if os.environ.get(var):
-        sys.path.append(os.path.expanduser(os.environ[var]))
+        # First, so the configured helpers win over any of the same name on
+        # Blender's own path.
+        sys.path.insert(0, os.path.expanduser(os.environ[var]))
 sys.path.append(HERE)
 import bx_gp as G
 
