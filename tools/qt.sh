@@ -2,7 +2,7 @@
 # Sourced by the mise tasks that play animations in Qt's Lottie player.
 
 # shellcheck disable=SC2034 # read by the tasks that source this file
-QT_LOTTIE_HELP="install Qt 6 with its Lottie module (Ubuntu/Debian: apt install qml-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qt-labs-lottieqt; Arch: pacman -S qt6-declarative qt6-lottie; macOS: brew install qt), or set QML to Qt 6's qml binary"
+QT_LOTTIE_HELP="install Qt 6 with its Lottie module (Ubuntu/Debian: apt install qml-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml-workerscript qml6-module-qt-labs-lottieqt; Arch: pacman -S qt6-declarative qt6-lottie; macOS: brew install qt), or set QML to Qt 6's qml binary"
 
 # Prints the path of Qt 6's qml runtime. Distributions name it differently:
 # qml6 on Arch and Fedora, /usr/lib/qt6/bin/qml (off PATH) on Debian/Ubuntu,
@@ -31,14 +31,21 @@ qt_offscreen_env() {
   export QT_QPA_PLATFORM=offscreen QT_FORCE_STDERR_LOGGING=1
 }
 
-# Whether qml ($1) can import Qt.labs.lottieqt. Runs in a subshell so the
-# off-screen settings stay out of the caller.
-qt_has_lottie() (
+# Prints why qml ($1) cannot import Qt.labs.lottieqt (Qt's own error line),
+# or nothing when it can. Runs in a subshell so the off-screen settings stay
+# out of the caller.
+qt_lottie_problem() (
   qt_offscreen_env
   dir="$(mktemp -d)"
   trap 'rm -r "$dir"' EXIT
   printf 'import QtQuick\nimport Qt.labs.lottieqt\nItem { Component.onCompleted: Qt.quit() }\n' > "$dir/probe.qml"
-  bounded 30 "$1" "$dir/probe.qml" >/dev/null 2>&1
+  if ! bounded 30 "$1" "$dir/probe.qml" >"$dir/out" 2>&1; then
+    # Qt names the missing module on a line like
+    # 'file:///…/probe.qml: module "QtQml.WorkerScript" is not installed'.
+    why="$(grep -m1 -E 'module|plugin|error|rror:' "$dir/out" | sed 's|^file://[^:]*: ||')"
+    [ -n "$why" ] || why="$(tail -n1 "$dir/out")"
+    printf '%s cannot import Qt.labs.lottieqt (%s)\n' "$1" "${why:-exited non-zero with no output}"
+  fi
 )
 
 # Runs a command for at most $1 seconds. macOS has no timeout(1) unless

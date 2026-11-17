@@ -106,4 +106,11 @@ fi
 # no display; journald-built Qt would otherwise hide the status line.
 unset QT_QPA_PLATFORMTHEME
 export QT_FORCE_STDERR_LOGGING=1
+# Without a display Qt aborts with a page of plugin errors; say it in one line.
+# A desktop may export QT_QPA_PLATFORM=wayland;xcb, which still needs one.
+case "${QT_QPA_PLATFORM:-}" in "" | wayland* | xcb*) needs_display=1 ;; *) needs_display="" ;; esac
+if [ "$(uname)" = Linux ] && [ -n "$needs_display" ] && [ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+  echo "run: no display (WAYLAND_DISPLAY and DISPLAY are unset); run it from a desktop session, or set QT_QPA_PLATFORM=offscreen with --quit-after" >&2
+  exit 1
+fi
 "$qml" "$dir/view.qml"

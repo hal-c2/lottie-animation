@@ -11,8 +11,13 @@ if [ "${usage_no_qt:-}" = true ]; then
   echo "test: skipped the Qt player load (--no-qt)"
   exit 0
 fi
-if ! qml="$(find_qml)" || ! qt_has_lottie "$qml"; then
-  echo "test: qml6 / Qt.labs.lottieqt not found: $QT_LOTTIE_HELP; or run 'mise run test --no-qt'" >&2
+if ! qml="$(find_qml)"; then
+  echo "test: qml6 not found: $QT_LOTTIE_HELP; or run 'mise run test --no-qt'" >&2
+  exit 1
+fi
+problem="$(qt_lottie_problem "$qml")"
+if [ -n "$problem" ]; then
+  echo "test: $problem: $QT_LOTTIE_HELP; or run 'mise run test --no-qt'" >&2
   exit 1
 fi
 

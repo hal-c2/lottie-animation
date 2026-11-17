@@ -25,8 +25,8 @@ echo "setup: tools installed; optional pieces:"
 qt=""
 if ! qml="$(find_qml)"; then
   qt="qml6 not found: $QT_LOTTIE_HELP"
-elif ! qt_has_lottie "$qml"; then
-  qt="$qml cannot import Qt.labs.lottieqt: $QT_LOTTIE_HELP"
+elif qt="$(qt_lottie_problem "$qml")" && [ -n "$qt" ]; then
+  qt="$qt: $QT_LOTTIE_HELP"
 fi
 report "qml6 + Qt.labs.lottieqt  (mise run test, mise run run --qt)" "$qt"
 
