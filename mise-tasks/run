@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#MISE description="Play one animation in a window (default version2/hal-c2-dance.json) with ljos run, or qml6 when ljos is not on PATH; click to pause; --qt forces qml6"
+#USAGE arg "[file]" help="A .json or .lottie animation (default version2/hal-c2-dance.json)"
+#USAGE flag "--qt" help="Play it in Qt's Lottie player (qml6) even when ljos is on PATH"
+#USAGE flag "--quit-after <ms>" help="Close after this many milliseconds, failing unless the animation loaded (for scripted runs)"
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=tools/qt.sh
+. "$root/tools/qt.sh"
+
+file="${usage_file:-version2/hal-c2-dance.json}"
+# mise runs tasks from the project root; a relative path means the directory
+# the person typed the command in, then the project root.
+case "$file" in
+  /*) ;;
+  *)
+    if [ -f "${MISE_ORIGINAL_CWD:-$PWD}/$file" ]; then
+      file="${MISE_ORIGINAL_CWD:-$PWD}/$file"
+    else
+      file="$root/$file"
+    fi
+    ;;
+esac
+[ -f "$file" ] || { echo "run: no such file: ${usage_file:-$file}" >&2; exit 1; }
+quit_after="${usage_quit_after:-0}"
+case "$quit_after" in
+  '' | *[!0-9]*) echo "run: --quit-after takes whole milliseconds, got '$quit_after'" >&2; exit 1 ;;
+esac
+
+dir="$(mktemp -d)"
+trap 'rm -r "$dir"' EXIT
+
+name="$(basename "$file")"
+case "$file" in
+  *.lottie)
+    # Neither player reads dotLottie archives, so play the animation inside.
+    python - "$file" "$dir/animation.json" <<'PY'
+import json, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    first = json.loads(z.read("manifest.json"))["animations"][0]["id"]
+    open(sys.argv[2], "wb").write(z.read(f"animations/{first}.json"))
+PY
+    file="$dir/animation.json"
+    ;;
+  *.json) ;;
+  *) echo "run: $name is not a .json or .lottie animation" >&2; exit 1 ;;
+esac
+
+# The path and name go into QML string literals: as a percent-encoded file URL
+# and as JSON strings, which are valid JavaScript ones, so quotes, backslashes,
+# spaces and '#' in a path survive.
+source_literal="$(python -c 'import json, pathlib, sys; print(json.dumps(pathlib.Path(sys.argv[1]).as_uri()))' "$file")"
+name_literal="$(python -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$name")"
+
+# The same small viewer as ljos-ui's `mise run lottie`, so the two players can
+# be compared side by side.
+cat > "$dir/view.qml" <<QML
+import QtQuick
+import Qt.labs.lottieqt
+
+Rectangle {
+    width: 640
+    height: 680
+    color: "#202020"
+
+    LottieAnimation {
+        id: anim
+        anchors.centerIn: parent
+        source: $source_literal
+        loops: LottieAnimation.Infinite
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        onClicked: anim.togglePause()
+    }
+
+    Text {
+        id: status
+        anchors.bottom: parent.bottom
+        anchors.margins: 8
+        x: 8
+        color: "white"
+        text: $name_literal + " · " + ["Null", "Loading", "Ready", "Error"][anim.status]
+              + " · " + anim.frameRate + " fps · frames " + anim.startFrame + "–" + anim.endFrame
+              + " · click to pause"
+    }
+
+    Timer {
+        interval: $quit_after
+        running: interval > 0
+        onTriggered: {
+            console.log(status.text)
+            if (anim.status === LottieAnimation.Ready)
+                Qt.quit()
+            else
+                Qt.exit(1)
+        }
+    }
+}
+QML
+
+if [ "${usage_qt:-}" != true ] && command -v ljos >/dev/null 2>&1; then
+  ljos run "$dir/view.qml"
+  exit
+fi
+if ! qml="$(find_qml)"; then
+  echo "run: qml6 not found: $QT_LOTTIE_HELP; or put ljos on PATH (github.com/hal-c2/ljos-ui)" >&2
+  exit 1
+fi
+# A desktop theme plugin is no use to this viewer and kills Qt when there is
+# no display; journald-built Qt would otherwise hide the status line.
+unset QT_QPA_PLATFORMTHEME
+export QT_FORCE_STDERR_LOGGING=1
+# Without a display Qt aborts with a page of plugin errors; say it in one line.
+# A desktop may export QT_QPA_PLATFORM=wayland;xcb, which still needs one.
+case "${QT_QPA_PLATFORM:-}" in "" | wayland* | xcb*) needs_display=1 ;; *) needs_display="" ;; esac
+if [ "$(uname)" = Linux ] && [ -n "$needs_display" ] && [ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+  echo "run: no display (WAYLAND_DISPLAY and DISPLAY are unset); run it from a desktop session, or set QT_QPA_PLATFORM=offscreen with --quit-after" >&2
+  exit 1
+fi
+"$qml" "$dir/view.qml"

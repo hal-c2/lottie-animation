@@ -1,0 +1,4 @@
+# `mise run build` writes here by default, so a rebuild never overwrites the
+# committed animations until someone copies it over on purpose.
+/build/
+__pycache__/

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#MISE description="Install the pinned tools (mise install), then report the optional pieces: qml6 with Qt.labs.lottieqt (test, run --qt), ljos (run), Blender with bx_gp, io_lottie_export and the avatar SVG (build)"
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=tools/qt.sh
+. "$root/tools/qt.sh"
+# shellcheck source=tools/blender.sh
+. "$root/tools/blender.sh"
+
+mise install
+
+# Everything below is optional: report it, never fail on it, so a fresh clone
+# can run check straight away whatever else is installed.
+report() {
+  local what="$1" problems="$2"
+  if [ -z "$problems" ]; then
+    printf '  ok       %s\n' "$what"
+  else
+    printf '  missing  %s\n' "$what"
+    printf '%s\n' "$problems" | sed 's/^/           /'
+  fi
+}
+
+echo "setup: tools installed; optional pieces:"
+qt=""
+if ! qml="$(find_qml)"; then
+  qt="qml6 not found: $QT_LOTTIE_HELP"
+elif qt="$(qt_lottie_problem "$qml")" && [ -n "$qt" ]; then
+  qt="$qt: $QT_LOTTIE_HELP"
+fi
+report "qml6 + Qt.labs.lottieqt  (mise run test, mise run run --qt)" "$qt"
+
+ljos=""
+command -v ljos >/dev/null 2>&1 \
+  || ljos="ljos not on PATH: cargo install --git https://github.com/hal-c2/ljos-ui ljos_cli (run falls back to qml6 without it)"
+report "ljos  (mise run run)" "$ljos"
+
+report "Blender 4.3+  (mise run build)" "$(check_blender)"
+report "bx_gp helpers, LOTTIE_GP_SCRIPTS  (mise run build)" "$(check_bx_gp)"
+report "io_lottie_export add-on  (mise run build)" "$(check_lottie_addon)"
+report "avatar SVG, HAL_C2_AVATAR_SVG  (mise run build)" "$(check_avatar_svg)"
+echo "setup: done; next: mise run check"
